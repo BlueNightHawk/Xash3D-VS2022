@@ -14,6 +14,7 @@ GNU General Public License for more details.
 */
 
 #include <windows.h>
+#include <assert.h>
 
 #define GAME_PATH	"valve"	// default dir to start from
 
@@ -23,62 +24,63 @@ extern "C" __declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001;
 extern "C" __declspec(dllexport) DWORD AmdPowerXpressRequestHighPerformance = 1;
 #endif
 
-typedef void (*pfnChangeGame)( const char *progname );
-typedef int (*pfnInit)( const char *progname, int bChangeGame, pfnChangeGame func );
-typedef void (*pfnShutdown)( void );
+typedef void (*pfnChangeGame)(const char* progname);
+typedef int (*pfnInit)(const char* progname, int bChangeGame, pfnChangeGame func);
+typedef void (*pfnShutdown)(void);
 
 pfnInit Host_Main;
 pfnShutdown Host_Shutdown = NULL;
 char szGameDir[128]; // safe place to keep gamedir
 HINSTANCE	hEngine;
 
-void Sys_Error( const char *errorstring )
+void Sys_Error(const char* errorstring)
 {
-	MessageBox( NULL, errorstring, "Engine Error", MB_OK|MB_SETFOREGROUND|MB_ICONSTOP );
-	exit( 1 );
+	MessageBox(NULL, errorstring, "Xash Error", MB_OK | MB_SETFOREGROUND | MB_ICONSTOP);
+	exit(1);
 }
 
-void Sys_LoadEngine( void )
+void Sys_LoadEngine(void)
 {
-	if(( hEngine = LoadLibrary( "engine.dll" )) == NULL )
+	if ((hEngine = LoadLibrary("engine.dll")) == NULL)
 	{
-		Sys_Error( "Unable to load the engine.dll" );
+		Sys_Error("Unable to load the engine.dll");
 	}
 
-	if(( Host_Main = (pfnInit)GetProcAddress( hEngine, "Host_Main" )) == NULL )
+	assert(hEngine != 0);
+
+	if ((Host_Main = (pfnInit)GetProcAddress(hEngine, "Host_Main")) == NULL)
 	{
-		Sys_Error( "engine.dll missed 'Host_Main' export" );
+		Sys_Error("engine.dll missed 'Host_Main' export");
 	}
 
 	// this is non-fatal for us but change game will not working
-	Host_Shutdown = (pfnShutdown)GetProcAddress( hEngine, "Host_Shutdown" );
+	Host_Shutdown = (pfnShutdown)GetProcAddress(hEngine, "Host_Shutdown");
 }
 
-void Sys_UnloadEngine( void )
+void Sys_UnloadEngine(void)
 {
-	if( Host_Shutdown ) Host_Shutdown( );
-	if( hEngine ) FreeLibrary( hEngine );
+	if (Host_Shutdown) Host_Shutdown();
+	if (hEngine) FreeLibrary(hEngine);
 }
 
-void Sys_ChangeGame( const char *progname )
+void Sys_ChangeGame(const char* progname)
 {
-	if( !progname || !progname[0] ) Sys_Error( "Sys_ChangeGame: NULL gamedir" );
-	if( Host_Shutdown == NULL ) Sys_Error( "Sys_ChangeGame: missed 'Host_Shutdown' export\n" );
-	strncpy( szGameDir, progname, sizeof( szGameDir ) - 1 );
+	if (!progname || !progname[0]) Sys_Error("Sys_ChangeGame: NULL gamedir");
+	if (Host_Shutdown == NULL) Sys_Error("Sys_ChangeGame: missed 'Host_Shutdown' export\n");
 
-	Sys_UnloadEngine ();
-	Sys_LoadEngine ();
-	
-	Host_Main( szGameDir, TRUE, ( Host_Shutdown != NULL ) ? Sys_ChangeGame : NULL );
+	assert(progname != 0);
+
+	strncpy(szGameDir, progname, sizeof(szGameDir) - 1);
+
+	Sys_UnloadEngine();
+	Sys_LoadEngine();
+
+	Host_Main(szGameDir, TRUE, (Host_Shutdown != NULL) ? Sys_ChangeGame : NULL);
 }
 
-int APIENTRY WinMain (
-	_In_ HINSTANCE hInstance,
-	_In_opt_ HINSTANCE hPrevInstance,
-	_In_ LPSTR lpCmdLine,
-	_In_ int nShowCmd )
+int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
 	Sys_LoadEngine();
 
-	return Host_Main( GAME_PATH, FALSE, ( Host_Shutdown != NULL ) ? Sys_ChangeGame : NULL );
+	return Host_Main(GAME_PATH, FALSE, (Host_Shutdown != NULL) ? Sys_ChangeGame : NULL);
 }
