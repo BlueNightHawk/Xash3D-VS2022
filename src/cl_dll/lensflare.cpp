@@ -70,6 +70,7 @@ int CHudLensflare::MsgFunc_Lensflare(const char *pszName,  int iSize, void *pbuf
 }
 
 extern vec3_t v_angles, v_origin;
+extern cvar_s* cl_sunflarespeed;
 
 int CHudLensflare::Draw(float flTime)
 {  
@@ -77,7 +78,7 @@ int CHudLensflare::Draw(float flTime)
 	vec3_t v_forward, v_right, v_up, angles; 
 	vec3_t forward, right, up, screen;  
 	pmtrace_t tr;
-	float speed = CVAR_GET_FLOAT("cl_sunflarespeed");
+	float speed = cl_sunflarespeed->value;
 
 	if (SunEnabled == TRUE)
 	{

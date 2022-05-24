@@ -259,6 +259,9 @@ DECLARE_COMMAND(m_Ammo, PrevWeapon);
 
 #define HISTORY_DRAW_TIME	"5"
 
+cvar_t* hud_drawhistory_time = nullptr;
+cvar_t* hud_fastswitch = nullptr;
+
 int CHudAmmo::Init(void)
 {
 	gHUD.AddHudElem(this);
@@ -287,8 +290,8 @@ int CHudAmmo::Init(void)
 
 	Reset();
 
-	CVAR_CREATE( "hud_drawhistory_time", HISTORY_DRAW_TIME, 0 );
-	CVAR_CREATE( "hud_fastswitch", "0", FCVAR_ARCHIVE );		// controls whether or not weapons can be selected in one keypress
+	hud_drawhistory_time = CVAR_CREATE( "hud_drawhistory_time", HISTORY_DRAW_TIME, 0 );
+	hud_fastswitch = CVAR_CREATE( "hud_fastswitch", "0", FCVAR_ARCHIVE );		// controls whether or not weapons can be selected in one keypress
 
 	m_iFlags |= HUD_ACTIVE; //!!!
 
@@ -437,7 +440,7 @@ void WeaponsResource :: SelectSlot( int iSlot, int fAdvance, int iDirection )
 		return;
 
 	WEAPON *p = NULL;
-	bool fastSwitch = CVAR_GET_FLOAT( "hud_fastswitch" ) != 0;
+	bool fastSwitch = hud_fastswitch->value != 0;
 
 	if ( (gpActiveSel == NULL) || (gpActiveSel == (WEAPON *)1) || (iSlot != gpActiveSel->iSlot) )
 	{

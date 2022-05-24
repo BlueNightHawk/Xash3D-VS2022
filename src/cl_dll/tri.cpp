@@ -444,6 +444,8 @@ void DLLEXPORT HUD_DrawNormalTriangles( void )
 
 }
 
+extern cvar_s* cl_drawropes;
+
 /*
 =================
 HUD_DrawTransparentTriangles
@@ -456,7 +458,7 @@ void DLLEXPORT HUD_DrawTransparentTriangles( void )
 	ProcessRain();
 	DrawRain();
 
-	if (CVAR_GET_FLOAT("cl_drawropes")) //magic nipples - ropes
+	if (cl_drawropes->value) //magic nipples - ropes
 		gRopeRender.DrawRopes(1);
 
 #if defined( TEST_IT )

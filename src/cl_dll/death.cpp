@@ -67,13 +67,15 @@ float *GetClientColor( int clientIndex )
 	return NULL;
 }
 
+cvar_t* hud_deathnotice_time = nullptr;
+
 int CHudDeathNotice :: Init( void )
 {
 	gHUD.AddHudElem( this );
 
 	HOOK_MESSAGE( DeathMsg );
 
-	CVAR_CREATE( "hud_deathnotice_time", "6", 0 );
+	hud_deathnotice_time = CVAR_CREATE( "hud_deathnotice_time", "6", 0 );
 
 	return 1;
 }
@@ -243,7 +245,7 @@ int CHudDeathNotice :: MsgFunc_DeathMsg( const char *pszName, int iSize, void *p
 
 	rgDeathNoticeList[i].iId = spr;
 
-	DEATHNOTICE_DISPLAY_TIME = CVAR_GET_FLOAT( "hud_deathnotice_time" );
+	DEATHNOTICE_DISPLAY_TIME = hud_deathnotice_time->value;
 	rgDeathNoticeList[i].flDisplayTime = gHUD.m_flTime + DEATHNOTICE_DISPLAY_TIME;
 
 	if (rgDeathNoticeList[i].iNonPlayerKill)

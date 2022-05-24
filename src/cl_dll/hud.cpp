@@ -84,6 +84,10 @@ extern client_sprite_t *GetSpriteList(client_sprite_t *pList, const char *psz, i
 extern cvar_t *sensitivity;
 cvar_t *cl_lw = NULL;
 
+cvar_t* cl_sunflarespeed = nullptr;
+cvar_t* cl_drawropes = nullptr;
+cvar_t* cl_speedcap = nullptr;
+
 void ShutdownInput (void);
 
 //DECLARE_MESSAGE(m_Logo, Logo)
@@ -335,16 +339,16 @@ void CHud :: Init( void )
 	m_iLogo = 0;
 	m_iFOV = 0;
 
-	CVAR_CREATE( "zoom_sensitivity_ratio", "1.2", 0 );
+	zoom_sensitivity_ratio = CVAR_CREATE( "zoom_sensitivity_ratio", "1.2", 0 );
 	default_fov = CVAR_CREATE( "default_fov", "90", 0 );
 	m_pCvarStealMouse = CVAR_CREATE( "hud_capturemouse", "1", FCVAR_ARCHIVE );
 	m_pCvarDraw = CVAR_CREATE( "hud_draw", "1", FCVAR_ARCHIVE );
 	cl_lw = gEngfuncs.pfnGetCvarPointer( "cl_lw" );
 	RainInfo = gEngfuncs.pfnRegisterVariable("cl_raininfo", "0", 0); //magic nipples - rain
-	CVAR_CREATE("cl_sunflarespeed", "7", 0);
-	CVAR_CREATE("cl_drawropes", "1", FCVAR_ARCHIVE); //magic nipples - ropes
+	cl_sunflarespeed = CVAR_CREATE("cl_sunflarespeed", "7", 0);
+	cl_drawropes = CVAR_CREATE("cl_drawropes", "1", FCVAR_ARCHIVE); //magic nipples - ropes
 
-	CVAR_CREATE("cl_speedcap", "1", FCVAR_ARCHIVE);
+	cl_speedcap = CVAR_CREATE("cl_speedcap", "1", FCVAR_ARCHIVE);
 
 	m_pSpriteList = NULL;
 
@@ -673,7 +677,7 @@ int CHud::MsgFunc_SetFOV(const char *pszName,  int iSize, void *pbuf)
 	BEGIN_READ( pbuf, iSize );
 
 	int newfov = READ_BYTE();
-	int def_fov = CVAR_GET_FLOAT( "default_fov" );
+	int def_fov = (int)default_fov->value;
 
 	//Weapon prediction already takes care of changing the fog. ( g_lastFOV ).
 	if ( cl_lw && cl_lw->value )
@@ -701,7 +705,7 @@ int CHud::MsgFunc_SetFOV(const char *pszName,  int iSize, void *pbuf)
 	else
 	{  
 		// set a new sensitivity that is proportional to the change from the FOV default
-		m_flMouseSensitivity = sensitivity->value * ((float)newfov / (float)def_fov) * CVAR_GET_FLOAT("zoom_sensitivity_ratio");
+		m_flMouseSensitivity = sensitivity->value * ((float)newfov / (float)def_fov) * zoom_sensitivity_ratio->value;
 	}
 
 	return 1;
