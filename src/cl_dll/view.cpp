@@ -129,6 +129,13 @@ cvar_t	v_ipitch_level		= {"v_ipitch_level", "0.3", 0, 0.3};
 
 float	v_idlescale;  // used by TFC for concussion grenade effect
 
+#define	HL2_BOB_CYCLE_MIN	1.0f
+#define	HL2_BOB_CYCLE_MAX	0.45f
+#define	HL2_BOB			0.002f
+#define	HL2_BOB_UP		0.5f
+
+#define clamp( val, min, max ) ( ((val) > (max)) ? (max) : ( ((val) < (min)) ? (min) : (val) ) )
+
 //=============================================================================
 /*
 void V_NormalizeAngles( float *angles )
@@ -187,50 +194,77 @@ void V_InterpolateAngles( float *start, float *end, float *output, float frac )
 	V_NormalizeAngles( output );
 } */
 
-// Quakeworld bob code, this fixes jitters in the mutliplayer since the clock (pparams->time) isn't quite linear
-float V_CalcBob ( struct ref_params_s *pparams )
+// PLut addition
+// Remap a value in the range [A,B] to [C,D].
+float RemapVal(float val, float A, float B, float C, float D)
 {
-	static	double	bobtime;
-	static float	bob;
-	float	cycle;
-	static float	lasttime;
-	vec3_t	vel;
-	
+	return C + (D - C) * (val - A) / (B - A);
+}
 
-	if ( pparams->onground == -1 ||
-		 pparams->time == lasttime )
+// Quakeworld bob code, this fixes jitters in the mutliplayer since the clock (pparams->time) isn't quite linear
+void V_CalcBob(struct ref_params_s* pparams, float& lateralbob, float& verticalbob)
+{
+	static	float bobtime;
+	static	float lastbobtime;
+	float	cycle;
+
+	vec3_t	vel;
+	VectorCopy(pparams->simvel, vel);
+	vel[2] = 0;
+
+	if (pparams->onground == -1 || pparams->time == lastbobtime)
 	{
-		// just use old value
-		return bob;	
+		return;
 	}
 
-	lasttime = pparams->time;
+	float speed = sqrt(vel[0] * vel[0] + vel[1] * vel[1]);
 
-	bobtime += pparams->frametime;
-	cycle = bobtime - (int)( bobtime / cl_bobcycle->value ) * cl_bobcycle->value;
-	cycle /= cl_bobcycle->value;
-	
-	if ( cycle < cl_bobup->value )
+	speed = clamp(speed, -320, 320);
+
+	float bob_offset = RemapVal(speed, 0, 320, 0.0f, 1.0f);
+
+	bobtime += (pparams->time - lastbobtime) * bob_offset;
+	lastbobtime = pparams->time;
+
+	//Calculate the vertical bob
+	cycle = bobtime - (int)(bobtime / HL2_BOB_CYCLE_MAX) * HL2_BOB_CYCLE_MAX;
+
+	cycle /= HL2_BOB_CYCLE_MAX;
+
+	if (cycle < HL2_BOB_UP)
 	{
-		cycle = M_PI * cycle / cl_bobup->value;
+		cycle = M_PI * cycle / HL2_BOB_UP;
 	}
 	else
 	{
-		cycle = M_PI + M_PI * ( cycle - cl_bobup->value )/( 1.0 - cl_bobup->value );
+		cycle = M_PI + M_PI * (cycle - HL2_BOB_UP) / (1.0 - HL2_BOB_UP);
 	}
 
-	// bob is proportional to simulated velocity in the xy plane
-	// (don't count Z, or jumping messes it up)
-	VectorCopy( pparams->simvel, vel );
-	vel[2] = 0;
+	verticalbob = speed * 0.004f;
+	verticalbob = verticalbob * 0.3 + verticalbob * 0.7 * sin(cycle);
 
-	bob = sqrt( vel[0] * vel[0] + vel[1] * vel[1] ) * cl_bob->value;
-	bob = bob * 0.3 + bob * 0.7 * sin(cycle);
-	bob = min( bob, 4 );
-	bob = max( bob, -7 );
-	return bob;
-	
+	verticalbob = clamp(verticalbob, -7.0f, 4.0f);
+
+	//Calculate the lateral bob
+	cycle = bobtime - (int)(bobtime / HL2_BOB_CYCLE_MAX * 2) * HL2_BOB_CYCLE_MAX * 2;
+	cycle /= HL2_BOB_CYCLE_MAX * 2;
+
+	if (cycle < HL2_BOB_UP)
+	{
+		cycle = M_PI * cycle / HL2_BOB_UP;
+	}
+	else
+	{
+		cycle = M_PI + M_PI * (cycle - HL2_BOB_UP) / (1.0 - HL2_BOB_UP);
+	}
+
+	lateralbob = speed * 0.004f;
+	lateralbob = lateralbob * 0.3 + lateralbob * 0.7 * sin(cycle);
+
+	lateralbob = clamp(lateralbob, -7.0f, 4.0f);
 }
+
+
 
 /*
 ===============
@@ -402,7 +436,9 @@ void V_CalcViewModelLag(ref_params_t* pparams, vec3_t& origin, vec3_t& angles, v
 	vec3_t vOriginalOrigin = origin;
 	vec3_t vOriginalAngles = angles;
 
-	if (CVAR_GET_FLOAT("cl_weaponlag_amount") <= 0)
+	const float flWeaponLag = 1.0f;
+
+	if (cl_weaponlag_amount->value <= 0)
 		return;
 
 	// Calculate our drift
@@ -414,15 +450,15 @@ void V_CalcViewModelLag(ref_params_t* pparams, vec3_t& origin, vec3_t& angles, v
 
 	vDifference = forward - m_vecLastFacing;
 
-	float flSpeed = CVAR_GET_FLOAT("cl_weaponlag_speed");
+	float flSpeed = cl_weaponlag_speed->value;
 
 	// If we start to lag too far behind, we'll increase the "catch up" speed.
 	// Solves the problem with fast cl_yawspeed, m_yaw or joysticks rotating quickly.
 	// The old code would slam lastfacing with origin causing the viewmodel to pop to a new position
 	float flDiff = vDifference.Length();
-	if ((flDiff > CVAR_GET_FLOAT("cl_weaponlag_amount")) && (CVAR_GET_FLOAT("cl_weaponlag_amount") > 0.0f))
+	if ((flDiff > flWeaponLag) && (flWeaponLag > 0.0f))
 	{
-		float flScale = flDiff / CVAR_GET_FLOAT("cl_weaponlag_amount");
+		float flScale = flDiff / flWeaponLag;
 		flSpeed *= flScale;
 	}
 
@@ -430,6 +466,7 @@ void V_CalcViewModelLag(ref_params_t* pparams, vec3_t& origin, vec3_t& angles, v
 	m_vecLastFacing = m_vecLastFacing + vDifference * (flSpeed * pparams->frametime);
 	// Make sure it doesn't grow out of control!!!
 	m_vecLastFacing = m_vecLastFacing.Normalize();
+	vDifference = vDifference * cl_weaponlag_amount->value;
 
 	//origin = origin + (vDifference * -1.0f) * 5.0f;
 	origin.x = origin.x + (vDifference.x * -1.0f) * 5.0f;
@@ -552,8 +589,10 @@ void V_CalcNormalRefdef ( struct ref_params_s *pparams )
 	cl_entity_t		*ent, *view;
 	int				i;
 	vec3_t			angles;
-	float			bob, waterOffset;
+	float			waterOffset;
 	static viewinterp_t		ViewInterp;
+
+	static float lateralbob = 0.0f, verticalbob = 0.0f;
 
 	static float oldz = 0;
 	static float lasttime;
@@ -578,11 +617,10 @@ void V_CalcNormalRefdef ( struct ref_params_s *pparams )
 
 	// transform the view offset by the model's matrix to get the offset from
 	// model origin for the view
-	bob = V_CalcBob ( pparams );
+	V_CalcBob(pparams, lateralbob, verticalbob);
 
 	// refresh position
 	VectorCopy ( pparams->simorg, pparams->vieworg );
-	pparams->vieworg[2] += ( bob );
 	VectorAdd( pparams->vieworg, pparams->viewheight, pparams->vieworg );
 
 	VectorCopy ( pparams->cl_viewangles, pparams->viewangles );
@@ -713,17 +751,19 @@ void V_CalcNormalRefdef ( struct ref_params_s *pparams )
 	// Let the viewmodel shake at about 10% of the amplitude
 	gEngfuncs.V_ApplyShake( view->origin, view->angles, 0.9 );
 
-	for ( i = 0; i < 3; i++ )
-	{
-		view->origin[ i ] += bob * 0.4 * pparams->forward[ i ];
-	}
-	view->origin[2] += bob;
+	// Apply bob, but scaled down to 40%
+	VectorMA(view->origin, verticalbob * 0.1f, pparams->forward, view->origin);
 
-	// throw in a little tilt.
-	view->angles[YAW]   -= bob * 0.5;
-	view->angles[ROLL]  -= bob * 1;
-	view->angles[PITCH] -= bob * 0.3;
+	// Z bob a bit more
+	view->origin[2] += verticalbob * 0.1f;
 
+	// bob the angles
+	angles[ROLL] += verticalbob * 0.3f;
+	angles[PITCH] -= verticalbob * 0.8f;
+
+	angles[YAW] -= lateralbob * 0.8f;
+
+	VectorMA(view->origin, lateralbob * 0.8f, pparams->right, view->origin);
 	
 	/*if (pparams->waterlevel > 2)
 	{
@@ -1782,7 +1822,7 @@ void V_Init (void)
 	v_centerspeed		= gEngfuncs.pfnRegisterVariable( "v_centerspeed","500", 0 );
 
 	cl_bobcycle			= gEngfuncs.pfnRegisterVariable( "cl_bobcycle","0.8", 0 );// best default for my experimental gun wag (sjb)
-	cl_bob				= gEngfuncs.pfnRegisterVariable( "cl_bob","0.0", 0 ); //0.01 // best default for my experimental gun wag (sjb)
+	cl_bob				= gEngfuncs.pfnRegisterVariable( "cl_bob","0.01", 0 ); //0.01 // best default for my experimental gun wag (sjb)
 	cl_bobup			= gEngfuncs.pfnRegisterVariable( "cl_bobup","0.5", 0 );
 	cl_waterdist		= gEngfuncs.pfnRegisterVariable( "cl_waterdist","4", 0 );
 	cl_chasedist		= gEngfuncs.pfnRegisterVariable( "cl_chasedist","112", 0 );
@@ -1790,8 +1830,8 @@ void V_Init (void)
 	cl_rollspeed		= gEngfuncs.pfnRegisterVariable("cl_rollspeed", "325", FCVAR_CLIENTDLL | FCVAR_ARCHIVE);
 	cl_rollangle		= gEngfuncs.pfnRegisterVariable("cl_rollangle", "0.6", FCVAR_CLIENTDLL | FCVAR_ARCHIVE);
 
-	cl_weaponlag_amount = gEngfuncs.pfnRegisterVariable("cl_weaponlag_amount", "0.8", FCVAR_CLIENTDLL | FCVAR_ARCHIVE); //Magic Nipples - weapon lag
-	cl_weaponlag_speed = gEngfuncs.pfnRegisterVariable("cl_weaponlag_speed", "6", FCVAR_CLIENTDLL | FCVAR_ARCHIVE); //Magic Nipples - weapon lag
+	cl_weaponlag_amount = gEngfuncs.pfnRegisterVariable("cl_weaponlag_amount", "0.25", FCVAR_CLIENTDLL | FCVAR_ARCHIVE); //Magic Nipples - weapon lag
+	cl_weaponlag_speed = gEngfuncs.pfnRegisterVariable("cl_weaponlag_speed", "8", FCVAR_CLIENTDLL | FCVAR_ARCHIVE); //Magic Nipples - weapon lag
 
 	g_cvShadows = gEngfuncs.pfnRegisterVariable("gl_shadows", "0", FCVAR_ARCHIVE); // Buz
 }

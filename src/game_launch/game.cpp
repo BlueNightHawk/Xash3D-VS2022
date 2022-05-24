@@ -46,9 +46,7 @@ void Sys_LoadEngine(void)
 		Sys_Error("Unable to load the engine.dll");
 	}
 
-	assert(hEngine != 0);
-
-	if ((Host_Main = (pfnInit)GetProcAddress(hEngine, "Host_Main")) == NULL)
+	if (hEngine != 0 && (Host_Main = (pfnInit)GetProcAddress(hEngine, "Host_Main")) == NULL)
 	{
 		Sys_Error("engine.dll missed 'Host_Main' export");
 	}
