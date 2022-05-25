@@ -124,10 +124,12 @@ public:
 	virtual void StudioCalcBoneAdj ( float dadt, float *adj, const byte *pcontroller1, const byte *pcontroller2, byte mouthopen );
 
 	// Get bone quaternions
-	virtual void StudioCalcBoneQuaterion ( int frame, float s, mstudiobone_t *pbone, mstudioanim_t *panim, float *adj, float *q );
+	virtual void StudioCalcBoneQuaterion ( int frame, float s, mstudiobone_t *pbone, mstudioanim_t *panim, float *adj, float *q, int index );
+	virtual void StudioCalcBoneQuaterionIdle(int frame, float s, mstudiobone_t* pbone, mstudioanim_t* panim, float* adj, float* q, int index);
+
 
 	// Get bone positions
-	virtual void StudioCalcBonePosition ( int frame, float s, mstudiobone_t *pbone, mstudioanim_t *panim, float *adj, float *pos );
+	virtual void StudioCalcBonePosition ( int frame, float s, mstudiobone_t *pbone, mstudioanim_t *panim, float *adj, float *pos, int index );
 
 	// Compute rotations
 	virtual void StudioCalcRotations ( float pos[][3], vec4_t *q, mstudioseqdesc_t *pseqdesc, mstudioanim_t *panim, float f );
@@ -261,6 +263,11 @@ private:
 public:
 	void			GetShadowVector(myvec3_t& vecOut);
 	// Buz End
+	vec3_t			vecLightdir;
+
+	vec3_t			viewboneangles[512];
+	vec3_t			viewfirstboneangles[512];
+	vec3_t			lerpedboneangles;
 };
 
 #endif // STUDIOMODELRENDERER_H

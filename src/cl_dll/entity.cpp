@@ -602,6 +602,19 @@ void DLLEXPORT HUD_CreateEntities( void )
 	GetClientVoiceMgr()->CreateEntities();
 }
 
+void HUD_MuzzleFlash(float* origin, int index)
+{
+	dlight_s* dl = gEngfuncs.pEfxAPI->CL_AllocDlight(index + 1);
+	if (dl)
+	{
+		VectorCopy(origin, dl->origin);
+		dl->color = { 216,164,0 };
+		dl->die = gEngfuncs.GetClientTime() + 0.15f;
+		dl->decay = 364;
+		dl->radius = gEngfuncs.pfnRandomLong(100, 150);
+	}
+}
+
 /*
 =========================
 HUD_StudioEvent
@@ -616,15 +629,19 @@ void DLLEXPORT HUD_StudioEvent( const struct mstudioevent_s *event, const struct
 	{
 	case 5001:
 		gEngfuncs.pEfxAPI->R_MuzzleFlash( (float *)&entity->attachment[0], atoi( event->options) );
+		HUD_MuzzleFlash((float*)&entity->attachment[0], entity->index);
 		break;
 	case 5011:
 		gEngfuncs.pEfxAPI->R_MuzzleFlash( (float *)&entity->attachment[1], atoi( event->options) );
+		HUD_MuzzleFlash((float*)&entity->attachment[1], entity->index);
 		break;
 	case 5021:
 		gEngfuncs.pEfxAPI->R_MuzzleFlash( (float *)&entity->attachment[2], atoi( event->options) );
+		HUD_MuzzleFlash((float*)&entity->attachment[2], entity->index);
 		break;
 	case 5031:
 		gEngfuncs.pEfxAPI->R_MuzzleFlash( (float *)&entity->attachment[3], atoi( event->options) );
+		HUD_MuzzleFlash((float*)&entity->attachment[3], entity->index);
 		break;
 	case 5002:
 		gEngfuncs.pEfxAPI->R_SparkEffect( (float *)&entity->attachment[0], atoi( event->options), -100, 100 );

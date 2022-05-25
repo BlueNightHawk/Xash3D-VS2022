@@ -26,6 +26,17 @@
 #include "shake.h"
 #include "hltv.h"
 
+#include "com_model.h"
+#include "studio.h"
+#include "StudioModelRenderer.h"
+#include "GameStudioModelRenderer.h"
+
+#include <cmath>
+#include <cassert>
+#include <iostream>
+
+extern CGameStudioModelRenderer g_StudioRenderer;
+
 // Buz
 #include "windows.h"
 #include "gl/gl.h"
@@ -129,8 +140,7 @@ cvar_t	v_ipitch_level		= {"v_ipitch_level", "0.3", 0, 0.3};
 
 float	v_idlescale;  // used by TFC for concussion grenade effect
 
-#define	HL2_BOB_CYCLE_MIN	1.0f
-#define	HL2_BOB_CYCLE_MAX	0.45f
+#define	HL2_BOB_CYCLE_MAX	cl_bobcycle->value
 #define	HL2_BOB			0.002f
 #define	HL2_BOB_UP		0.5f
 
@@ -573,6 +583,8 @@ typedef struct
 	int CurrentAngle;
 } viewinterp_t;
 
+#define VECPRINT(x) x[0],x[1],x[2]
+
 /*
 ==================
 V_CalcRefdef
@@ -751,20 +763,32 @@ void V_CalcNormalRefdef ( struct ref_params_s *pparams )
 	// Let the viewmodel shake at about 10% of the amplitude
 	gEngfuncs.V_ApplyShake( view->origin, view->angles, 0.9 );
 
-	// Apply bob, but scaled down to 40%
-	VectorMA(view->origin, verticalbob * 0.1f, pparams->forward, view->origin);
+	// Apply bob
+	VectorMA(view->origin, verticalbob * -0.25f, pparams->up, view->origin);
+	VectorMA(view->origin, lateralbob * 0.35f, pparams->right, view->origin);
+	//view->angles[0] -= verticalbob * 0.15f;
+	//view->angles[1] -= lateralbob * 0.15f;
 
-	// Z bob a bit more
-	view->origin[2] += verticalbob * 0.1f;
-
-	// bob the angles
-	angles[ROLL] += verticalbob * 0.3f;
-	angles[PITCH] -= verticalbob * 0.8f;
-
-	angles[YAW] -= lateralbob * 0.8f;
-
-	VectorMA(view->origin, lateralbob * 0.8f, pparams->right, view->origin);
+	pparams->viewangles[0] += verticalbob * 0.45f;
+	pparams->viewangles[1] += lateralbob * 0.45f;
 	
+	{
+		const int idx = 0;
+
+		vec3_t boneangle = g_StudioRenderer.viewboneangles[idx] - g_StudioRenderer.viewfirstboneangles[idx];
+
+		for (int i = 0; i < 3; i++)
+		{
+			if (fabs(boneangle[i]) > 1)
+				continue;
+
+			g_StudioRenderer.lerpedboneangles[i] = std::lerp(g_StudioRenderer.lerpedboneangles[i], boneangle[i], pparams->frametime * 20.0f);
+		}
+
+		gEngfuncs.Con_Printf("diff : %f %f %f cur : %f %f %f idle : %f %f %f \n", VECPRINT(boneangle), VECPRINT(g_StudioRenderer.viewboneangles[idx]), VECPRINT(g_StudioRenderer.viewfirstboneangles[idx]));
+
+		VectorAdd(pparams->viewangles, g_StudioRenderer.lerpedboneangles * 1.35f, pparams->viewangles);
+	}
 	/*if (pparams->waterlevel > 2)
 	{
 		flDelta += (M_PI / 120) * (pparams->frametime * 35);
@@ -1821,7 +1845,7 @@ void V_Init (void)
 	v_centermove		= gEngfuncs.pfnRegisterVariable( "v_centermove", "0.15", 0 );
 	v_centerspeed		= gEngfuncs.pfnRegisterVariable( "v_centerspeed","500", 0 );
 
-	cl_bobcycle			= gEngfuncs.pfnRegisterVariable( "cl_bobcycle","0.8", 0 );// best default for my experimental gun wag (sjb)
+	cl_bobcycle			= gEngfuncs.pfnRegisterVariable( "cl_bobcycle","0.5", 0 );// best default for my experimental gun wag (sjb)
 	cl_bob				= gEngfuncs.pfnRegisterVariable( "cl_bob","0.01", 0 ); //0.01 // best default for my experimental gun wag (sjb)
 	cl_bobup			= gEngfuncs.pfnRegisterVariable( "cl_bobup","0.5", 0 );
 	cl_waterdist		= gEngfuncs.pfnRegisterVariable( "cl_waterdist","4", 0 );

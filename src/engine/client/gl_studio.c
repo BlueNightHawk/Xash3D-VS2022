@@ -376,6 +376,16 @@ static cl_entity_t *pfnGetCurrentEntity( void )
 
 /*
 ===============
+GetLightPos
+
+===============
+*/
+static void GetLightPos(void *ent, float *out)
+{
+}
+
+/*
+===============
 pfnPlayerInfo
 
 ===============
@@ -3333,7 +3343,7 @@ void GL_StudioSetRenderMode( int rendermode )
 		break;
 	}
 }
-	
+
 /*
 ===============
 GL_StudioDrawShadow
@@ -4289,6 +4299,7 @@ static engine_studio_api_t gStudioAPI =
 	R_StudioSetRenderamt,
 	R_StudioSetCullState,
 	R_StudioRenderShadow,
+	GetLightPos,
 };
 
 static r_studio_interface_t gStudioDraw =

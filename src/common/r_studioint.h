@@ -111,6 +111,8 @@ typedef struct engine_studio_api_s
 	void		( *StudioSetRenderamt )( int iRenderamt );
 	void		( *StudioSetCullState )( int iCull );
 	void		( *StudioRenderShadow )( int iSprite, float *p1, float *p2, float *p3, float *p4 );
+
+	void		(*GetLightPos)(void *ent, float* out);
 } engine_studio_api_t;
 
 typedef struct server_studio_api_s

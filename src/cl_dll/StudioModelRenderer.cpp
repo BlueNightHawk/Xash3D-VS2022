@@ -255,12 +255,14 @@ StudioCalcBoneQuaterion
 
 ====================
 */
-void CStudioModelRenderer::StudioCalcBoneQuaterion( int frame, float s, mstudiobone_t *pbone, mstudioanim_t *panim, float *adj, float *q )
+void CStudioModelRenderer::StudioCalcBoneQuaterion( int frame, float s, mstudiobone_t *pbone, mstudioanim_t *panim, float *adj, float *q, int index )
 {
 	int					j, k;
 	vec4_t				q1, q2;
 	vec3_t				angle1, angle2;
 	mstudioanimvalue_t	*panimvalue;
+
+	static int prevframe = 0;
 
 	for (j = 0; j < 3; j++)
 	{
@@ -323,15 +325,113 @@ void CStudioModelRenderer::StudioCalcBoneQuaterion( int frame, float s, mstudiob
 		}
 	}
 
+	if (gEngfuncs.GetViewModel() == m_pCurrentEntity)
+	{
+	//	gEngfuncs.Con_Printf("%i \n", frame);
+	}
+
 	if (!VectorCompare( angle1, angle2 ))
 	{
 		AngleQuaternion( angle1, q1 );
 		AngleQuaternion( angle2, q2 );
 		QuaternionSlerp( q1, q2, s, q );
+
+		if (gEngfuncs.GetViewModel() == m_pCurrentEntity)
+		{
+			VectorCopy(angle2, viewboneangles[index]);	
+		}
 	}
 	else
 	{
 		AngleQuaternion( angle1, q );
+
+		if (gEngfuncs.GetViewModel() == m_pCurrentEntity)
+		{
+			VectorCopy(angle1, viewboneangles[index]);		
+		}
+	}
+}
+
+void CStudioModelRenderer::StudioCalcBoneQuaterionIdle(int frame, float s, mstudiobone_t* pbone, mstudioanim_t* panim, float* adj, float* q, int index)
+{
+	int					j, k;
+	vec4_t				q1, q2;
+	vec3_t				angle1, angle2;
+	mstudioanimvalue_t* panimvalue;
+
+	for (j = 0; j < 3; j++)
+	{
+		if (panim->offset[j + 3] == 0)
+		{
+			angle2[j] = angle1[j] = pbone->value[j + 3]; // default;
+		}
+		else
+		{
+			panimvalue = (mstudioanimvalue_t*)((byte*)panim + panim->offset[j + 3]);
+			k = frame;
+			// DEBUG
+			if (panimvalue->num.total < panimvalue->num.valid)
+				k = 0;
+			while (panimvalue->num.total <= k)
+			{
+				k -= panimvalue->num.total;
+				panimvalue += panimvalue->num.valid + 1;
+				// DEBUG
+				if (panimvalue->num.total < panimvalue->num.valid)
+					k = 0;
+			}
+			// Bah, missing blend!
+			if (panimvalue->num.valid > k)
+			{
+				angle1[j] = panimvalue[k + 1].value;
+
+				if (panimvalue->num.valid > k + 1)
+				{
+					angle2[j] = panimvalue[k + 2].value;
+				}
+				else
+				{
+					if (panimvalue->num.total > k + 1)
+						angle2[j] = angle1[j];
+					else
+						angle2[j] = panimvalue[panimvalue->num.valid + 2].value;
+				}
+			}
+			else
+			{
+				angle1[j] = panimvalue[panimvalue->num.valid].value;
+				if (panimvalue->num.total > k + 1)
+				{
+					angle2[j] = angle1[j];
+				}
+				else
+				{
+					angle2[j] = panimvalue[panimvalue->num.valid + 2].value;
+				}
+			}
+			angle1[j] = pbone->value[j + 3] + angle1[j] * pbone->scale[j + 3];
+			angle2[j] = pbone->value[j + 3] + angle2[j] * pbone->scale[j + 3];
+		}
+
+		if (pbone->bonecontroller[j + 3] != -1)
+		{
+			angle1[j] += adj[pbone->bonecontroller[j + 3]];
+			angle2[j] += adj[pbone->bonecontroller[j + 3]];
+		}
+	}
+
+	if (!VectorCompare(angle1, angle2))
+	{
+		AngleQuaternion(angle1, q1);
+		AngleQuaternion(angle2, q2);
+		QuaternionSlerp(q1, q2, s, q);
+
+		VectorCopy(angle2, viewfirstboneangles[index]);
+	}
+	else
+	{
+		AngleQuaternion(angle1, q);
+		VectorCopy(angle1, viewfirstboneangles[index]);
 	}
 }
 
@@ -341,7 +441,7 @@ StudioCalcBonePosition
 
 ====================
 */
-void CStudioModelRenderer::StudioCalcBonePosition( int frame, float s, mstudiobone_t *pbone, mstudioanim_t *panim, float *adj, float *pos )
+void CStudioModelRenderer::StudioCalcBonePosition( int frame, float s, mstudiobone_t *pbone, mstudioanim_t *panim, float *adj, float *pos, int index )
 {
 	int					j, k;
 	mstudioanimvalue_t	*panimvalue;
@@ -670,6 +770,8 @@ void CStudioModelRenderer::StudioCalcRotations ( float pos[][3], vec4_t *q, mstu
 	float				adj[MAXSTUDIOCONTROLLERS];
 	float				dadt;
 
+	static char lastmodel[128] = {"\0"};
+
 	if (f > pseqdesc->numframes - 1)
 	{
 		f = 0;	// bah, fix this bug with changing sequences too fast
@@ -697,13 +799,13 @@ void CStudioModelRenderer::StudioCalcRotations ( float pos[][3], vec4_t *q, mstu
 	// add in programtic controllers
 	pbone		= (mstudiobone_t *)((byte *)m_pStudioHeader + m_pStudioHeader->boneindex);
 
-	StudioCalcBoneAdj( dadt, adj, m_pCurrentEntity->curstate.controller, m_pCurrentEntity->latched.prevcontroller, m_pCurrentEntity->mouth.mouthopen );
+	StudioCalcBoneAdj(dadt, adj, m_pCurrentEntity->curstate.controller, m_pCurrentEntity->latched.prevcontroller, m_pCurrentEntity->mouth.mouthopen);
 
 	for (i = 0; i < m_pStudioHeader->numbones; i++, pbone++, panim++) 
 	{
-		StudioCalcBoneQuaterion( frame, s, pbone, panim, adj, q[i] );
+		StudioCalcBoneQuaterion( frame, s, pbone, panim, adj, q[i], i );
 
-		StudioCalcBonePosition( frame, s, pbone, panim, adj, pos[i] );
+		StudioCalcBonePosition( frame, s, pbone, panim, adj, pos[i], i );
 		// if (0 && i == 0)
 		//	Con_DPrintf("%d %d %d %d\n", m_pCurrentEntity->curstate.sequence, frame, j, k );
 	}
@@ -734,6 +836,24 @@ void CStudioModelRenderer::StudioCalcRotations ( float pos[][3], vec4_t *q, mstu
 	if (pseqdesc->motiontype & STUDIO_LZ)
 	{
 		pos[pseqdesc->motionbone][2] += s * pseqdesc->linearmovement[2];
+	}
+	if (gEngfuncs.GetViewModel() == m_pCurrentEntity && stricmp(lastmodel, m_pRenderModel->name))
+	{
+		vec4_t		tempq[MAXSTUDIOBONES];
+		memcpy(tempq, q, MAXSTUDIOBONES);
+		StudioCalcBoneAdj(dadt, adj, m_pCurrentEntity->curstate.controller, m_pCurrentEntity->latched.prevcontroller, m_pCurrentEntity->mouth.mouthopen);
+
+		mstudioseqdesc_t* tempseqdesc = (mstudioseqdesc_t*)((byte*)m_pStudioHeader + m_pStudioHeader->seqindex) + 0;
+		mstudioanim_t* tempanim = StudioGetAnim(m_pRenderModel, tempseqdesc);
+		mstudiobone_t* tempbone = (mstudiobone_t*)((byte*)m_pStudioHeader + m_pStudioHeader->boneindex);
+
+		for (i = 0; i < m_pStudioHeader->numbones; i++, tempbone++, tempanim++)
+		{
+			StudioCalcBoneQuaterionIdle(0, s, tempbone, tempanim, adj, tempq[i], i);
+
+			//	StudioCalcBonePosition(frame, s, pbone, panim, adj, pos[i], i);
+		}
+		strcpy(lastmodel, m_pRenderModel->name);
 	}
 }
 
@@ -1252,6 +1372,8 @@ int CStudioModelRenderer::StudioDrawModel( int flags )
 		m_nBottomColor = (m_pCurrentEntity->curstate.colormap & 0xFF00) >> 8;
 
 		IEngineStudio.StudioSetRemapColors( m_nTopColor, m_nBottomColor );
+
+		VectorCopy(dir, vecLightdir);
 
 		StudioRenderModel( );
 	}
@@ -2187,6 +2309,5 @@ void CStudioModelRenderer::GetShadowVector(myvec3_t& vecOut)
 		vecOut[1] = 1;
 		vecOut[2] = 1.5;
 	}
-
 	VectorNormalize(vecOut);
 }

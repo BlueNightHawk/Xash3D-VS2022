@@ -247,7 +247,7 @@ void CPhysic :: Update( float flTime )
 		NewtonUpdate( m_pWorld, flTime );
 	}
 	//DebugDraw();
-#ifdef _DEBUG
+#if defined(_DEBUG) && defined(_PRINT_BODIES)
 	NewtonWorldForEachBodyDo( m_pWorld, pfnPrintStats );
 	ALERT( at_console, "Total Active Bodies %i\n", bodycount );
 #endif
